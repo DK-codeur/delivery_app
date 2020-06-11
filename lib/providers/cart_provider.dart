@@ -1,3 +1,4 @@
+
 import 'package:delivery_app/providers/produit.dart';
 import 'package:flutter/material.dart';
 
@@ -64,6 +65,11 @@ class Cart with ChangeNotifier {
   );
     notifyListeners();
   }
+
+
+  
+  
+
 
   void removeItem(String cmdId) {
     _items.remove(cmdId);

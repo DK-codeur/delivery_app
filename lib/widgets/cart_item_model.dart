@@ -1,11 +1,17 @@
 import 'dart:math';
+import 'package:delivery_app/providers/cart_provider.dart';
+import 'package:delivery_app/providers/cmd.dart';
 import 'package:delivery_app/providers/produit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 class CartItemModel extends StatefulWidget {
 
   final String id;
+  final String cmdItemId;
   final double amount;
   final List<Produit> products;
   final String name;
@@ -16,6 +22,7 @@ class CartItemModel extends StatefulWidget {
 
   CartItemModel(
     this.id, 
+    this.cmdItemId, 
     this.amount, 
     this.products, 
     this.name, 
@@ -31,9 +38,34 @@ class CartItemModel extends StatefulWidget {
 
 class _CartItemModelState extends State<CartItemModel> {
   var _expanded = false;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
+
+    final cmdActions = Provider.of<Commandes>(context, listen: false);
+    final cartItem = Provider.of<Cart>(context);
+
+    void _showErrorDialog(String message) {
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Ouups! Error', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),),
+        content: Text(message),
+
+        actions: <Widget>[
+          FlatButton(
+            child: Text('OK'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          )
+        ],
+      )
+    );
+  }
+
     return Card(
       margin: EdgeInsets.all(10),
       elevation: 3,
@@ -43,7 +75,7 @@ class _CartItemModelState extends State<CartItemModel> {
             title: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                Text('Cmd acceptée N°${widget.ii}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                Text('${widget.name}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
                 Text('${widget.amount.toInt()} F', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
               ],
             ),
@@ -68,7 +100,7 @@ class _CartItemModelState extends State<CartItemModel> {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 15, vertical: 4),
               height: min(
-                widget.products.length * 20.0 + (40*3.3), 
+                widget.products.length * 20.0 + (40*3.5), 
                 190
               ),
               child: ListView(
@@ -129,10 +161,88 @@ class _CartItemModelState extends State<CartItemModel> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: <Widget>[
-                            RaisedButton(
+
+                            (_isLoading) 
+                          ? SpinKitFadingCircle(color: Colors.green, size: 32,) 
+                          : RaisedButton(
                               color: Colors.green,
                               child: Text('Livrer', style: TextStyle(color: Colors.white)),
-                              onPressed: () {},
+                              
+                              onPressed: () { 
+                              showDialog(
+                                barrierDismissible: false,
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: Text('Livrer ?', style: TextStyle(fontSize: 22, color: Colors.green),),
+                                  content: Text('La commande est-elle prête pour la livraison ?'),
+                                  actions: <Widget>[
+                                    FlatButton(
+                                      child: Text('Annuler', style: TextStyle(color: Colors.black),),
+                                      onPressed: (){ 
+                                        Navigator.of(context).pop(context);
+                                      },
+                                    ),
+
+                                    SizedBox(width: 30,),
+
+                                    RaisedButton(
+                                        color: Colors.green,
+                                        child: Text('Livrer', style: TextStyle(color: Colors.white),),
+
+                                        onPressed: () async {
+                                          Navigator.of(context).pop();
+                                          setState(() {
+                                            _isLoading = true; 
+                                          });
+
+                                          try{
+                                            await cmdActions.addCommandeToHistory(
+                                            widget.products.map((prod) => Produit(
+                                              id: prod.id,
+                                              price: prod.price,
+                                              quantity: prod.quantity,
+                                              title: prod.title,
+                                              isMenu: prod.isMenu,
+                                            )).toList(), 
+                                            widget.amount, 
+                                            widget.name, 
+                                            widget.adress, 
+                                            widget.phone,
+                                          );
+                                        
+                                            // print(widget.cmdItemId);
+                                            cartItem.removeItem(widget.cmdItemId); //cart
+                                            await cmdActions.deleteCommande(widget.cmdItemId);//cmd
+
+                                            Fluttertoast.showToast(
+                                              msg: 'Commande embarquée pour la livraison',
+                                              toastLength: Toast.LENGTH_LONG, 
+                                              gravity: ToastGravity.BOTTOM,
+                                              backgroundColor: Colors.green,
+                                              textColor: Colors.white,
+                                              fontSize: 13.0
+                                            );
+
+                                        } catch (error) {
+                                          var msg = 'Livraison impossible réessayez! erreur';
+                                          _showErrorDialog(msg);
+
+                                        }
+
+                                          setState(() {
+                                          _isLoading = false;
+                                        });
+
+
+                                  },
+
+                                      ),
+                                  ],
+                                )
+
+                              );
+                              }
+
                             )
                           ],
                         ),
@@ -156,3 +266,50 @@ class _CartItemModelState extends State<CartItemModel> {
     
   }
 }
+
+
+
+// class CommandeHistoryButton extends StatefulWidget {
+//   const CommandeHistoryButton({
+//     Key key,
+//     @required this.cart,
+//   }) : super(key: key);
+
+//   final Cart cart;
+
+//   @override
+//   _CommandeHistoryButtonState createState() => _CommandeHistoryButtonState();
+// }
+
+// class _CommandeHistoryButtonState extends State<CommandeHistoryButton> {
+//   var _isLoading = false;
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return RaisedButton(
+//       textColor: Colors.white,
+//       child: (_isLoading)
+//         ? CircularProgressIndicator() 
+//         : Text('Livrer'),
+        
+//       onPressed: () 
+//       ? null 
+//       :  () async {
+
+//         setState(() {
+//           _isLoading = true;
+//         });
+
+//         await Provider.of<Commandes>(context, listen: false).addCommandeToHistory(
+//           widget.cart.items.
+//         );
+
+//         setState(() {
+//           _isLoading = false;
+//         });
+
+//         widget.cart.clear();
+//       },
+//     );
+//   }
+// }
